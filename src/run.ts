@@ -70,6 +70,12 @@ export async function downloadKubectl(version: string): Promise<string> {
                )
             )
          } else {
+            if (exception instanceof Error) {
+               core.debug(`Download error: ${exception.message}`)
+               core.debug(`Stack trace: ${exception.stack}`)
+            } else {
+               core.debug(`Download error: ${String(exception)}`)
+            }
             throw new Error('DownloadKubectlFailed')
          }
       }

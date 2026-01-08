@@ -132,6 +132,32 @@ describe('Testing all functions in run file.', () => {
       expect(toolCache.find).toHaveBeenCalledWith('kubectl', 'v1.15.0')
       expect(toolCache.downloadTool).toHaveBeenCalled()
    })
+   test('downloadKubectl() - log error details when download fails with Error object', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
+      jest.spyOn(toolCache, 'find').mockReturnValue('')
+      const testError = new Error('Network connection failed')
+      jest.spyOn(toolCache, 'downloadTool').mockRejectedValue(testError)
+      await expect(run.downloadKubectl('v1.15.0')).rejects.toThrow(
+         'DownloadKubectlFailed'
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         `Download error: ${testError.message}`
+      )
+      expect(debugSpy).toHaveBeenCalledWith(`Stack trace: ${testError.stack}`)
+   })
+   test('downloadKubectl() - log error details when download fails with non-Error object', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
+      jest.spyOn(toolCache, 'find').mockReturnValue('')
+      jest
+         .spyOn(toolCache, 'downloadTool')
+         .mockRejectedValue('Unable to download kubectl.')
+      await expect(run.downloadKubectl('v1.15.0')).rejects.toThrow(
+         'DownloadKubectlFailed'
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         'Download error: Unable to download kubectl.'
+      )
+   })
    test('downloadKubectl() - throw kubectl not found error when receive 404 response', async () => {
       const kubectlVersion = 'v1.15.0'
       const arch = 'arm128'
