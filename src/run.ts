@@ -9,10 +9,11 @@ import {
    getExecutableExtension,
    getLatestPatchVersion
 } from './helpers'
+import {getErrorDetails} from './errorUtils'
 
 const kubectlToolName = 'kubectl'
 const stableKubectlVersion = 'v1.15.0'
-const stableVersionUrl = 'https://dl.k8s.io/release/stable.txt'
+const stableVersionUrl = 'https://cdn.dl.k8s.io/release/stable.txt'
 
 export async function run() {
    let version = core.getInput('version', {required: true})
@@ -41,7 +42,8 @@ export async function getStableKubectlVersion(): Promise<string> {
          return version
       },
       (error) => {
-         core.debug(error)
+         core.debug('Download error:')
+         core.debug(getErrorDetails(error))
          core.warning('GetStableVersionFailed')
          return stableKubectlVersion
       }
@@ -70,12 +72,8 @@ export async function downloadKubectl(version: string): Promise<string> {
                )
             )
          } else {
-            if (exception instanceof Error) {
-               core.debug(`Download error: ${exception.message}`)
-               core.debug(`Stack trace: ${exception.stack}`)
-            } else {
-               core.debug(`Download error: ${String(exception)}`)
-            }
+            core.debug('Download error:')
+            core.debug(getErrorDetails(exception))
             throw new Error('DownloadKubectlFailed')
          }
       }

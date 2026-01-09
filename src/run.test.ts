@@ -93,11 +93,44 @@ describe('Testing all functions in run file.', () => {
       expect(fs.readFileSync).toHaveBeenCalledWith('pathToTool', 'utf8')
    })
    test('getStableKubectlVersion() - return default v1.15.0 if unable to download file', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
       jest
          .spyOn(toolCache, 'downloadTool')
          .mockRejectedValue('Unable to download.')
       expect(await run.getStableKubectlVersion()).toBe('v1.15.0')
       expect(toolCache.downloadTool).toHaveBeenCalled()
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Non-Error object: Unable to download.')
+      )
+   })
+   test('getStableKubectlVersion() - log enhanced error details for AggregateError', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
+
+      const error1 = new Error('ETIMEDOUT')
+      const error2 = new Error('Connection refused')
+      const aggregateError = new AggregateError(
+         [error1, error2],
+         'Multiple connection failures'
+      )
+
+      jest.spyOn(toolCache, 'downloadTool').mockRejectedValue(aggregateError)
+      expect(await run.getStableKubectlVersion()).toBe('v1.15.0')
+      expect(toolCache.downloadTool).toHaveBeenCalled()
+
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error type: AggregateError')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Number of errors: 2')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error 1: ETIMEDOUT')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error 2: Connection refused')
+      )
    })
    test('downloadKubectl() - download kubectl, add it to toolCache and return path to it', async () => {
       jest.spyOn(toolCache, 'find').mockReturnValue('')
@@ -140,10 +173,16 @@ describe('Testing all functions in run file.', () => {
       await expect(run.downloadKubectl('v1.15.0')).rejects.toThrow(
          'DownloadKubectlFailed'
       )
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
       expect(debugSpy).toHaveBeenCalledWith(
-         `Download error: ${testError.message}`
+         expect.stringContaining('Error type: Error')
       )
-      expect(debugSpy).toHaveBeenCalledWith(`Stack trace: ${testError.stack}`)
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining(`Error message: ${testError.message}`)
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Stack trace:')
+      )
    })
    test('downloadKubectl() - log error details when download fails with non-Error object', async () => {
       const debugSpy = jest.spyOn(core, 'debug')
@@ -154,8 +193,62 @@ describe('Testing all functions in run file.', () => {
       await expect(run.downloadKubectl('v1.15.0')).rejects.toThrow(
          'DownloadKubectlFailed'
       )
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
       expect(debugSpy).toHaveBeenCalledWith(
-         'Download error: Unable to download kubectl.'
+         expect.stringContaining(
+            'Non-Error object: Unable to download kubectl.'
+         )
+      )
+   })
+   test('downloadKubectl() - log comprehensive error details for AggregateError', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
+      jest.spyOn(toolCache, 'find').mockReturnValue('')
+
+      // Create an AggregateError with multiple errors
+      const error1 = new Error('ETIMEDOUT')
+      const error2 = new Error('Connection refused')
+      const aggregateError = new AggregateError(
+         [error1, error2],
+         'Multiple connection failures'
+      )
+
+      jest.spyOn(toolCache, 'downloadTool').mockRejectedValue(aggregateError)
+      await expect(run.downloadKubectl('v1.15.0')).rejects.toThrow(
+         'DownloadKubectlFailed'
+      )
+
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error type: AggregateError')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error message: Multiple connection failures')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Number of errors: 2')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error 1: ETIMEDOUT')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error 2: Connection refused')
+      )
+   })
+   test('downloadKubectl() - log error code when present', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
+      jest.spyOn(toolCache, 'find').mockReturnValue('')
+
+      const errorWithCode = new Error('Network timeout') as any
+      errorWithCode.code = 'ETIMEDOUT'
+
+      jest.spyOn(toolCache, 'downloadTool').mockRejectedValue(errorWithCode)
+      await expect(run.downloadKubectl('v1.15.0')).rejects.toThrow(
+         'DownloadKubectlFailed'
+      )
+
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error code: ETIMEDOUT')
       )
    })
    test('downloadKubectl() - throw kubectl not found error when receive 404 response', async () => {
@@ -216,12 +309,51 @@ describe('Testing all functions in run file.', () => {
    })
 
    test('getLatestPatchVersion() - throw error when download fails', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
       jest
          .spyOn(toolCache, 'downloadTool')
          .mockRejectedValue(new Error('Network error'))
 
       await expect(getLatestPatchVersion('1', '27')).rejects.toThrow(
          'Failed to get latest patch version for 1.27'
+      )
+
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error type: Error')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error message: Network error')
+      )
+   })
+   test('getLatestPatchVersion() - log comprehensive error details for AggregateError', async () => {
+      const debugSpy = jest.spyOn(core, 'debug')
+
+      const error1 = new Error('ETIMEDOUT')
+      const error2 = new Error('Connection refused')
+      const aggregateError = new AggregateError(
+         [error1, error2],
+         'Multiple connection failures'
+      )
+
+      jest.spyOn(toolCache, 'downloadTool').mockRejectedValue(aggregateError)
+
+      await expect(getLatestPatchVersion('1', '27')).rejects.toThrow(
+         'Failed to get latest patch version for 1.27'
+      )
+
+      expect(debugSpy).toHaveBeenCalledWith('Download error:')
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error type: AggregateError')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Number of errors: 2')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error 1: ETIMEDOUT')
+      )
+      expect(debugSpy).toHaveBeenCalledWith(
+         expect.stringContaining('Error 2: Connection refused')
       )
    })
    test('resolveKubectlVersion() - expands major.minor to latest patch', async () => {

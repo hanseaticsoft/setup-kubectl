@@ -3,6 +3,7 @@ import * as util from 'util'
 import * as fs from 'fs'
 import * as core from '@actions/core'
 import * as toolCache from '@actions/tool-cache'
+import {getErrorDetails} from './errorUtils'
 export function getKubectlArch(): string {
    const arch = os.arch()
    if (arch === 'x64') {
@@ -14,14 +15,14 @@ export function getKubectlArch(): string {
 export function getkubectlDownloadURL(version: string, arch: string): string {
    switch (os.type()) {
       case 'Linux':
-         return `https://dl.k8s.io/release/${version}/bin/linux/${arch}/kubectl`
+         return `https://cdn.dl.k8s.io/release/${version}/bin/linux/${arch}/kubectl`
 
       case 'Darwin':
-         return `https://dl.k8s.io/release/${version}/bin/darwin/${arch}/kubectl`
+         return `https://cdn.dl.k8s.io/release/${version}/bin/darwin/${arch}/kubectl`
 
       case 'Windows_NT':
       default:
-         return `https://dl.k8s.io/release/${version}/bin/windows/${arch}/kubectl.exe`
+         return `https://cdn.dl.k8s.io/release/${version}/bin/windows/${arch}/kubectl.exe`
    }
 }
 
@@ -42,7 +43,8 @@ export async function getLatestPatchVersion(
       }
       return latestPatch
    } catch (error) {
-      core.debug(error)
+      core.debug('Download error:')
+      core.debug(getErrorDetails(error))
       core.warning('GetLatestPatchVersionFailed')
       throw new Error(`Failed to get latest patch version for ${version}`)
    }
