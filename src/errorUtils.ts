@@ -18,6 +18,7 @@ export function getErrorDetails(error: unknown): string {
       }
 
       // For AggregateError, log all individual errors (up to MAX_ERRORS_TO_LOG)
+      // Note: Using duck typing for broader compatibility with error-like objects
       if ('errors' in error && Array.isArray(error.errors)) {
          const errorCount = error.errors.length
          details.push(`Number of errors: ${errorCount}`)
@@ -59,7 +60,6 @@ export function getErrorDetails(error: unknown): string {
          (key) => !standardProps.includes(key)
       )
       if (otherProps.length > 0) {
-         details.push(`Other properties: ${JSON.stringify(otherProps)}`)
          otherProps.forEach((prop) => {
             const value = (error as any)[prop]
             try {
@@ -80,7 +80,7 @@ export function getErrorDetails(error: unknown): string {
       details.push(`Type: ${typeof error}`)
       if (error !== null && typeof error === 'object') {
          try {
-            const jsonValue = JSON.stringify(error, null, 2)
+            const jsonValue = JSON.stringify(error)
             // Limit the size of the serialized value
             const truncatedValue =
                jsonValue.length > 500
