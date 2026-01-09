@@ -1,5 +1,7 @@
 export function getErrorDetails(error: unknown): string {
    const details: string[] = []
+   const MAX_ERRORS_TO_LOG = 5
+   const MAX_STACK_TRACE_LINES = 10
 
    if (error instanceof Error) {
       // Log error name/type
@@ -15,22 +17,40 @@ export function getErrorDetails(error: unknown): string {
          details.push(`Error code: ${error.code}`)
       }
 
-      // For AggregateError, log all individual errors
+      // For AggregateError, log all individual errors (up to MAX_ERRORS_TO_LOG)
       if ('errors' in error && Array.isArray(error.errors)) {
-         details.push(`Number of errors: ${error.errors.length}`)
-         error.errors.forEach((err, index) => {
+         const errorCount = error.errors.length
+         details.push(`Number of errors: ${errorCount}`)
+         const errorsToLog = Math.min(errorCount, MAX_ERRORS_TO_LOG)
+
+         for (let i = 0; i < errorsToLog; i++) {
+            const err = error.errors[i]
             details.push(
-               `Error ${index + 1}: ${err instanceof Error ? err.message : String(err)}`
+               `Error ${i + 1}: ${err instanceof Error ? err.message : String(err)}`
             )
             if (err instanceof Error && err.stack) {
-               details.push(`Stack trace ${index + 1}: ${err.stack}`)
+               const truncatedStack = truncateStackTrace(
+                  err.stack,
+                  MAX_STACK_TRACE_LINES
+               )
+               details.push(`Stack trace ${i + 1}: ${truncatedStack}`)
             }
-         })
+         }
+
+         if (errorCount > MAX_ERRORS_TO_LOG) {
+            details.push(
+               `... and ${errorCount - MAX_ERRORS_TO_LOG} more error(s)`
+            )
+         }
       }
 
-      // Log stack trace
+      // Log stack trace (truncated)
       if (error.stack) {
-         details.push(`Stack trace: ${error.stack}`)
+         const truncatedStack = truncateStackTrace(
+            error.stack,
+            MAX_STACK_TRACE_LINES
+         )
+         details.push(`Stack trace: ${truncatedStack}`)
       }
 
       // Log any other properties
@@ -42,16 +62,47 @@ export function getErrorDetails(error: unknown): string {
          details.push(`Other properties: ${JSON.stringify(otherProps)}`)
          otherProps.forEach((prop) => {
             const value = (error as any)[prop]
-            details.push(`${prop}: ${JSON.stringify(value)}`)
+            try {
+               const jsonValue = JSON.stringify(value)
+               // Limit the size of the serialized value
+               const truncatedValue =
+                  jsonValue.length > 500
+                     ? jsonValue.substring(0, 500) + '...(truncated)'
+                     : jsonValue
+               details.push(`${prop}: ${truncatedValue}`)
+            } catch (e) {
+               details.push(`${prop}: <unable to serialize>`)
+            }
          })
       }
    } else {
       details.push(`Non-Error object: ${String(error)}`)
       details.push(`Type: ${typeof error}`)
       if (error !== null && typeof error === 'object') {
-         details.push(`Properties: ${JSON.stringify(error, null, 2)}`)
+         try {
+            const jsonValue = JSON.stringify(error, null, 2)
+            // Limit the size of the serialized value
+            const truncatedValue =
+               jsonValue.length > 500
+                  ? jsonValue.substring(0, 500) + '...(truncated)'
+                  : jsonValue
+            details.push(`Properties: ${truncatedValue}`)
+         } catch (e) {
+            details.push(`Properties: <unable to serialize>`)
+         }
       }
    }
 
    return details.join('\n')
+}
+
+function truncateStackTrace(stack: string, maxLines: number): string {
+   const lines = stack.split('\n')
+   if (lines.length <= maxLines) {
+      return stack
+   }
+   return (
+      lines.slice(0, maxLines).join('\n') +
+      `\n... (${lines.length - maxLines} more lines)`
+   )
 }
